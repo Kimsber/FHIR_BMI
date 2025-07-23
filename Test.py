@@ -1,3 +1,81 @@
+# Taiwan Core IG profile URLs
+TAIWAN_PATIENT_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Patient-twcore"
+TAIWAN_OBSERVATION_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-twcore"
+
+# Function to create a Patient resource following the IG
+def create_patient_resource(given, family, gender, birth_date):
+    return {
+        "resourceType": "Patient",
+        "meta": {
+            "profile": [TAIWAN_PATIENT_PROFILE]
+        },
+        "name": [{
+            "use": "official",
+            "family": family,
+            "given": [given]
+        }],
+        "gender": gender,
+        "birthDate": birth_date
+        # Add other required fields/extensions per IG if needed
+    }
+
+# Function to create Observation resources for height and weight following the IG
+def create_observation_resources(height, weight, patient_ref):
+    return [
+        {
+            "resourceType": "Observation",
+            "meta": {
+                "profile": [TAIWAN_OBSERVATION_PROFILE]
+            },
+            "status": "final",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "8302-2", "display": "Height"}]},
+            "subject": {"reference": patient_ref},
+            "valueQuantity": {"value": float(height), "unit": "cm"}
+            # Add other required fields/extensions per IG if needed
+        },
+        {
+            "resourceType": "Observation",
+            "meta": {
+                "profile": [TAIWAN_OBSERVATION_PROFILE]
+            },
+            "status": "final",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "29463-7", "display": "Weight"}]},
+            "subject": {"reference": patient_ref},
+            "valueQuantity": {"value": float(weight), "unit": "kg"}
+            # Add other required fields/extensions per IG if needed
+        }
+    ]
+
+# Function to create a FHIR transaction Bundle with Patient and Observations
+def create_patient_observation_bundle(patient_resource, obs_resources):
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "transaction",
+        "entry": []
+    }
+    # Add Patient as a POST entry
+    bundle["entry"].append({
+        "resource": patient_resource,
+        "request": {
+            "method": "POST",
+            "url": "Patient"
+        }
+    })
+    # Add Observations as POST entries, referencing the patient via a temporary fullUrl
+    patient_fullUrl = "urn:uuid:patient1"
+    bundle["entry"][0]["fullUrl"] = patient_fullUrl
+    for obs in obs_resources:
+        obs = obs.copy()
+        obs["subject"] = {"reference": patient_fullUrl}
+        bundle["entry"].append({
+            "resource": obs,
+            "request": {
+                "method": "POST",
+                "url": "Observation"
+            }
+        })
+    return bundle
+
 import requests
 from datetime import datetime
 
@@ -78,3 +156,28 @@ for i in range(num_pairs):
     else:
         bmi_str = "N/A"
     print(f"{name:<20} {age!s:<5} {gender:<8} {height_value!s:<10} {weight_value!s:<10} {bmi_str:<6}")
+
+# Function to upload (POST) or update (PUT) a FHIR resource to the server
+def upload_fhir_resource(resource, resource_type=None, resource_id=None, server_url=FHIR_SERVER):
+    """
+    Uploads (POST) or updates (PUT) a FHIR resource to the server.
+    If resource is a Bundle, uploads as a transaction.
+    If resource_id is provided, uses PUT to update; otherwise, uses POST to create.
+    Returns the response object.
+    """
+    headers = {"Content-Type": "application/fhir+json"}
+    if resource.get("resourceType") == "Bundle":
+        url = f"{server_url}"
+        response = requests.post(url, json=resource, headers=headers)
+        return response
+    if resource_type is None:
+        resource_type = resource.get("resourceType")
+    if resource_id:
+        # Update (PUT)
+        url = f"{server_url}{resource_type}/{resource_id}"
+        response = requests.put(url, json=resource, headers=headers)
+    else:
+        # Create (POST)
+        url = f"{server_url}{resource_type}"
+        response = requests.post(url, json=resource, headers=headers)
+    return response
