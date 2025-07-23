@@ -9,3 +9,4 @@ bmi_fhir_chat_summary.md
 .venv/
 .vscode/
 .git/
+.gitignore
