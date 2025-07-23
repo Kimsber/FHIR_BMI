@@ -181,3 +181,29 @@ def upload_fhir_resource(resource, resource_type=None, resource_id=None, server_
         url = f"{server_url}{resource_type}"
         response = requests.post(url, json=resource, headers=headers)
     return response
+
+
+# Function to upload (POST) or update (PUT) a FHIR resource to the server
+def upload_fhir_resource(resource, resource_type=None, resource_id=None, server_url=FHIR_SERVER):
+    """
+    Uploads (POST) or updates (PUT) a FHIR resource to the server.
+    If resource is a Bundle, uploads as a transaction.
+    If resource_id is provided, uses PUT to update; otherwise, uses POST to create.
+    Returns the response object.
+    """
+    headers = {"Content-Type": "application/fhir+json"}
+    if resource.get("resourceType") == "Bundle":
+        url = f"{server_url}"
+        response = requests.post(url, json=resource, headers=headers)
+        return response
+    if resource_type is None:
+        resource_type = resource.get("resourceType")
+    if resource_id:
+        # Update (PUT)
+        url = f"{server_url}{resource_type}/{resource_id}"
+        response = requests.put(url, json=resource, headers=headers)
+    else:
+        # Create (POST)
+        url = f"{server_url}{resource_type}"
+        response = requests.post(url, json=resource, headers=headers)
+    return response
