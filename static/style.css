@@ -1,0 +1,55 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+    background-color: #d6d6d6;
+}
+
+table {
+    border-collapse: collapse;
+    border-style: ridge;
+    width: 80%;
+    margin: 0 auto;
+}
+
+th,
+td {
+    border: 1px solid #757575;
+    padding: 8px 12px;
+    text-align: center;
+}
+
+th {
+    background: #c4c4c4;
+}
+
+h1 {
+    text-align: center;
+    font: bold;
+}
+
+a {
+    font-size: 1.2em;
+    color: #007bff;
+    font: bold;
+    text-decoration: none;
+}
+
+@media screen and (max-width: 1080px) {
+    body {
+        margin: 20px;
+    }
+
+    table {
+        width: 100%;
+    }
+
+    th,
+    td {
+        padding: 6px 8px;
+    }
+
+    h1 {
+        font-size: 1.5em;
+    }
+    
+}

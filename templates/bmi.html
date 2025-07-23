@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BMI Calculation Results</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./static/style.css">
+    
+</head>
+<body>
+    <div class="table">
+    <h1>BMI Calculation Results</h1>
+    <table>
+        <tr>
+            <th>No.</th>
+            <th>Name</th>
+            <th>Age</th>
+            <th>Gender</th>
+            <th>Height</th>
+            <th>Weight</th>
+            <th>BMI</th>
+            <th>Status</th>
+        </tr>
+        {% for row in bmi_results %}
+        <tr>
+            <td>{{ row.index }}</td>
+            <td>{{ row.name }}</td>
+            <td>{{ row.age }}</td>
+            <td>{{ row.gender }}</td>
+            <td>{{ row.height }}</td>
+            <td>{{ row.weight }}</td>
+            <td>{{ row.bmi }}</td>
+            <td>{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+    <div class=home-link>
+        <p style="text-align: center;"><a href="/" style="text-align: center; margin: 0 auto;">Back to Home</a></p>
+    </div>
+    
+</body>
+</html>
