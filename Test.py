@@ -21,6 +21,12 @@ def create_patient_resource(given, family, gender, birth_date):
         "meta": {
             "profile": [TAIWAN_PATIENT_PROFILE]
         },
+        "identifier": [
+            {
+                "system": "http://hospital.local/patient-id",
+                "value": f"{family}-{given}-{birth_date}"
+            }
+        ],
         "name": [{
             "use": "official",
             "family": family,
