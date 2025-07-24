@@ -195,3 +195,20 @@ if __name__ == "__main__":
             bmi_str = "N/A"
         print(f"{name:<20} {age!s:<5} {gender:<8} {height_value!s:<10} {weight_value!s:<10} {bmi_str:<6}")
 
+if __name__ == "__main__":
+    # Sample data
+    given = "John"
+    family = "Doe"
+    gender = "male"
+    birth_date = "1980-01-01"
+    height = 175  # cm
+    weight = 70   # kg
+
+    # 1. Create Patient resource
+    patient_resource = create_patient_resource(given, family, gender, birth_date)
+
+    # 2. Create transaction bundle with Patient and Observation
+    bundle = create_patient_observation_bundle(patient_resource, height, weight)
+
+    # 3. (Optional) Upload the bundle to the FHIR server
+    response = post_fhir_bundle(bundle)

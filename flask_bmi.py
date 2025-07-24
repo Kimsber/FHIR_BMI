@@ -1,12 +1,36 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import requests
 from datetime import datetime
+from Test import create_patient_resource, create_patient_observation_bundle, post_fhir_bundle
 
 app = Flask(__name__)
 
 FHIR_SERVER = "https://twcore.hapi.fhir.tw/fhir/"
 LOINC_HEIGHT = "8302-2"
 LOINC_WEIGHT = "29463-7"
+
+
+# Route to handle form submission and create/upload FHIR bundle
+@app.route('/create_bundle', methods=['POST'])
+def create_bundle():
+    given = request.form.get('given')
+    family = request.form.get('family')
+    gender = request.form.get('gender')
+    birth_date = request.form.get('birth_date')
+    height = request.form.get('height')
+    weight = request.form.get('weight')
+
+    # Create Patient resource
+    patient_resource = create_patient_resource(given, family, gender, birth_date)
+    # Create Bundle
+    bundle = create_patient_observation_bundle(patient_resource, height, weight)
+    # Upload Bundle
+    response = post_fhir_bundle(bundle)
+    if response.status_code in [200, 201]:
+        msg = "FHIR Bundle uploaded successfully!"
+    else:
+        msg = f"Error uploading FHIR Bundle: {response.status_code} {response.text}"
+    return render_template('index.html', result_message=msg)
 
 def fetch_observations(loinc_code, count=10):
     url = str(FHIR_SERVER + f"Observation?code=http://loinc.org|{loinc_code}&_sort=-date&_count={count}")
