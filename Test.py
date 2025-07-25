@@ -3,8 +3,8 @@ import requests
 import uuid
 
 # Taiwan Core IG profile URLs
-TAIWAN_PATIENT_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition-Patient-twcore.html"
-TAIWAN_OBSERVATION_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition-Observation-vitalSigns-twcore.html"
+TAIWAN_PATIENT_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Patient-twcore"
+TAIWAN_OBSERVATION_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-vitalSigns-twcore"
 
 # FHIR server endpoint (Taiwan Core)
 FHIR_SERVER = "https://twcore.hapi.fhir.tw/fhir/"
@@ -21,6 +21,10 @@ def create_patient_resource(given, family, gender, birth_date):
         "meta": {
             "profile": [TAIWAN_PATIENT_PROFILE]
         },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Patient: {family} {given}, Gender: {gender}, Birth: {birth_date}</div>"
+        },
         "identifier": [
             {
                 "system": "http://hospital.local/patient-id",
@@ -34,7 +38,6 @@ def create_patient_resource(given, family, gender, birth_date):
         }],
         "gender": gender,
         "birthDate": birth_date
-        # Add other required fields/extensions per IG if needed
     }
 
 # Function to create a single Observation resource (for height or weight)
@@ -44,15 +47,25 @@ def create_observation_code_value(code, display, value, unit):
                              "code": code, 
                              "display": display}]},
         "valueQuantity": {"value": float(value), "unit": unit}
-        # Add other required fields/extensions per IG if needed
     }
 
 # Function to create Observation resources for height and weight following the IG
 def create_observation_resources(height, weight, patient_ref):
-    return {
+    # Use correct LOINC display names
+    vital_panel_display = "Vital signs, weight, height, head circumference, oxygen saturation and BMI panel"
+    height_display = "Body height"
+    weight_display = "Body weight"
+    # Use timezone-aware datetime
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    obs = {
         "resourceType": "Observation",
         "meta": {
             "profile": [TAIWAN_OBSERVATION_PROFILE]
+        },
+        "text": {
+            "status": "generated",
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Panel: Height={height}cm, Weight={weight}kg</div>"
         },
         "status": "final",
         "category": [
@@ -69,16 +82,19 @@ def create_observation_resources(height, weight, patient_ref):
         "code": {"coding": [
             {"system": "http://loinc.org", 
              "code": LONIC_VitalSigns, 
-             "display": "Vital signs panel"}
+             "display": vital_panel_display}
              ]
              },
         "subject": {"reference": patient_ref},
-        "effectiveDateTime": datetime.now().isoformat(),
+        "effectiveDateTime": now,
         "component": [
-            create_observation_code_value(LOINC_HEIGHT, "Height", height, "cm"),
-            create_observation_code_value(LOINC_WEIGHT, "Weight", weight, "kg")
+            create_observation_code_value(LOINC_HEIGHT, height_display, height, "cm"),
+            create_observation_code_value(LOINC_WEIGHT, weight_display, weight, "kg")
         ]
     }
+    # Only add performer if not empty (FHIR: do not include empty array)
+    # If you have a performer, add: obs["performer"] = [ ... ]
+    return obs
 
 # Function to create a FHIR transaction Bundle with Patient and Observations
 def create_patient_observation_bundle(patient_resource, height, weight):
@@ -103,9 +119,12 @@ def create_patient_observation_bundle(patient_resource, height, weight):
             "url": "Patient"
         }
     })
-    # Create a single panel Observation using the patient_fullUrl as patient_ref
+    # Add Observation with its own fullUrl
+    obs_uuid = str(uuid.uuid4())
+    obs_fullUrl = f"urn:uuid:{obs_uuid}"
     obs_panel = create_observation_resources(height, weight, patient_fullUrl)
     bundle["entry"].append({
+        "fullUrl": obs_fullUrl,
         "resource": obs_panel,
         "request": {
             "method": "POST",
@@ -212,3 +231,18 @@ if __name__ == "__main__":
 
     # 3. (Optional) Upload the bundle to the FHIR server
     response = post_fhir_bundle(bundle)
+
+    # 4. Print the response status and content
+    print("Status code:", response.status_code)
+
+    try:
+        resp_json = response.json()
+        # print("Response JSON:", resp_json)
+        # If OperationOutcome, print issues
+        if resp_json.get("resourceType") == "OperationOutcome":
+            print("OperationOutcome issues:")
+            for issue in resp_json.get("issue", []):
+                print(f"- Severity: {issue.get('severity')}, Code: {issue.get('code')}, Details: {issue.get('diagnostics')}")
+    except Exception as e:
+        print("Response text:", response.text)
+        print("Error parsing JSON:", e)
