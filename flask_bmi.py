@@ -9,6 +9,7 @@ TAIWAN_OBSERVATION_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefi
 
 app = Flask(__name__)
 
+
 FHIR_SERVER = "https://twcore.hapi.fhir.tw/fhir/"
 LOINC_HEIGHT = "8302-2"
 LOINC_WEIGHT = "29463-7"
