@@ -1,14 +1,128 @@
+
 from flask import Flask, render_template
 import requests
 from datetime import datetime
+import uuid
+
+# Taiwan Core IG profile URLs
+TAIWAN_PATIENT_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition-Patient-twcore.html"
+TAIWAN_OBSERVATION_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition-Observation-vitalSigns-twcore.html"
 
 app = Flask(__name__)
+
 
 FHIR_SERVER = "https://twcore.hapi.fhir.tw/fhir/"
 LOINC_HEIGHT = "8302-2"
 LOINC_WEIGHT = "29463-7"
+LONIC_VitalSigns = "85353-1"  # LONIC: Vital signs, weight, height, head circumference, oxygen saturation and BMI panel
 
-def fetch_observations(loinc_code, count=10):
+# Function to create a Patient resource following the IG
+def create_patient_resource(given, family, gender, birth_date):
+    return {
+        "resourceType": "Patient",
+        "meta": {
+            "profile": [TAIWAN_PATIENT_PROFILE]
+        },
+        "name": [{
+            "use": "official",
+            "family": family,
+            "given": [given]
+        }],
+        "gender": gender,
+        "birthDate": birth_date
+        # Add other required fields/extensions per IG if needed
+    }
+
+# Function to create a single Observation resource (for height or weight)
+def create_observation_code_value(code, display, value, unit):
+    return {
+        "code": {"coding": [{"system": "http://loinc.org",
+                                 "code": code,
+                                 "display": display}]},
+        "valueQuantity": {"value": float(value), "unit": unit}
+        # Add other required fields/extensions per IG if needed
+    }
+
+# Function to create Observation resources for height and weight following the IG
+def create_observation_resources(height, weight, patient_ref):
+    return {
+        "resourceType": "Observation",
+        "meta": {
+            "profile": [TAIWAN_OBSERVATION_PROFILE]
+        },
+        "status": "final",
+        "category": [
+            {
+                "coding": [
+                    {
+                        "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                        "code": "vital-signs",
+                        "display": "Vital Signs"
+                    }
+                ]
+            }
+        ],
+        "code": {"coding": [
+            {"system": "http://loinc.org",
+             "code": LONIC_VitalSigns,
+             "display": "Vital signs panel"}
+             ]
+             },
+        "subject": {"reference": patient_ref},
+        "effectiveDateTime": datetime.now().isoformat(),
+        "component": [
+            create_observation_code_value(LOINC_HEIGHT, "Height", height, "cm"),
+            create_observation_code_value(LOINC_WEIGHT, "Weight", weight, "kg")
+        ]
+    }
+
+# Function to create a FHIR transaction Bundle with Patient and Observations
+def create_patient_observation_bundle(patient_resource, height, weight):
+    """
+    Create a transaction Bundle with Patient and Observations (height, weight).
+    The patient_ref for Observations is a generated UUID fullUrl.
+    """
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "transaction",
+        "entry": []
+    }
+    # Generate a unique UUID for the patient fullUrl
+    patient_uuid = str(uuid.uuid4())
+    patient_fullUrl = f"urn:uuid:{patient_uuid}"
+    # Add Patient as a POST entry with fullUrl
+    bundle["entry"].append({
+        "fullUrl": patient_fullUrl,
+        "resource": patient_resource,
+        "request": {
+            "method": "POST",
+            "url": "Patient"
+        }
+    })
+    # Create a single panel Observation using the patient_fullUrl as patient_ref
+    obs_panel = create_observation_resources(height, weight, patient_fullUrl)
+    bundle["entry"].append({
+        "resource": obs_panel,
+        "request": {
+            "method": "POST",
+            "url": "Observation"
+        }
+    })
+    return bundle
+
+# Function to POST a FHIR bundle to the server
+def post_fhir_bundle(bundle, server_url=FHIR_SERVER):
+    """
+    Posts a FHIR transaction bundle to the server.
+    Returns the response object.
+    """
+    headers = {"Content-Type": "application/fhir+json"}
+    response = requests.post(server_url, json=bundle, headers=headers)
+    return response
+
+
+# Fetch the latest observation for a given LOINC code from the FHIR server
+def fetch_observations(loinc_code, count=50):
     url = str(FHIR_SERVER + f"Observation?code=http://loinc.org|{loinc_code}&_sort=-date&_count={count}")
     results = []
     while url:
@@ -21,7 +135,7 @@ def fetch_observations(loinc_code, count=10):
             obs = entry["resource"]
             value = obs.get("valueQuantity", {}).get("value")
             unit = obs.get("valueQuantity", {}).get("unit")
-            patient_ref = obs.get("subject", {}).get("reference")
+            patient_ref = obs.get("subject", {}).get("reference") #取得對照病人名稱
             results.append((value, unit, patient_ref))
         # Find the next page link
         next_url = None
@@ -31,6 +145,7 @@ def fetch_observations(loinc_code, count=10):
                 break
         url = next_url
     return results
+
 
 def fetch_patient(patient_ref):
     if not patient_ref:
