@@ -37,15 +37,40 @@
                 <button type="submit">Create FHIR Bundle</button>
             </form>
         </div>
-        {% if displayer %}
-        <div id="displayer" style="flex: 3; min-width: 320px; max-width: 1500px; max-height: 500px; overflow: auto; margin-top:2em; padding:1em; background:#dedede; border:1px solid #ccc; border-radius:8px;">
-            {% if displayer %}
-                {{ displayer|safe }}
-            {% endif %}
+        {% if result %}
+        <div id="displayer" style="flex: 3; min-width: 320px; max-width: 1500px; max-height: 500px; overflow: auto; margin-top:2em; padding:1em; background:#dedede; border:1px solid #ccc; border-radius:8px; display: flex; flex-direction: column; gap: 2em;">
+            <div id="resource">
+                <h2 style="margin-top:0;">Resource Narrative</h2>
+                <p>Name: {{ result["given"] }}</p>
+                <p>Family: {{ result["family"] }}</p>
+                <p>Biological sex: {{ result["gender"] }}</p>
+                <p>Birth Date: {{ result["birth_date"] }}</p>
+                <p>Height: {{ result["height"] }}</p>
+                <p>Weight: {{ result["weight"] }}</p>
+                <p>Patient Resource: <a href='{{ result["patient_url"] }}' target='_blank'>{{ result["patient_url"] }}</a></p>
+                <p>Observation Resource: <a href='{{ result["observation_url"] }}' target='_blank'>{{ result["observation_url"] }}</a></p>
+            </div>
+            <div id="bmi_result" style="font-size:1.2em; color:#006400; font-weight:bold;">
+                <h2 style="margin-top:0;">BMI Result</h2>
+                {% if result["bmi"] is not none %}
+                    <div style="padding:0.5em 0;">Your BMI: <span style="background:#e6ffe6; padding:0.2em 0.6em; border-radius:6px;">{{ '%.2f'|format(result["bmi"]) }}</span> <span style="font-size:0.7em; color:#333;">kg/m²</span></div>
+                    {% if result["bmi"] < 18.5 %}
+                        <p>Status: Underweight</p>
+                    {% elif 18.5 <= result["bmi"] < 24.9 %}
+                        <p>Status: Normal weight</p>
+                    {% elif 25 <= result["bmi"] < 29.9 %}
+                        <p>Status: Overweight</p>
+                    {% else %}
+                        <p>Status: Obesity</p>
+                    {% endif %}
+                {% else %}
+                    <div style="color:#a00;">BMI not available.</div>
+                {% endif %}
+            </div>
         </div>
         {% endif %}
     </div>
-    <p style="text-align:center;">Go to <a href="/bmi">BMI Results</a> to see patient BMI calculations.</p>
+    <p style="text-align:center;">Go to see <a href="/bmi">BMI Analysis</a>.</p>
 </body>
 
 </html>

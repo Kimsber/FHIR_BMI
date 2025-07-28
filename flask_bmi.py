@@ -13,6 +13,7 @@ app = Flask(__name__)
 FHIR_SERVER = "https://twcore.hapi.fhir.tw/fhir/"
 LOINC_HEIGHT = "8302-2"
 LOINC_WEIGHT = "29463-7"
+LOINC_BMI = "39156-5"
 LONIC_VitalSigns = "85353-1"  # LONIC: Vital signs, weight, height, head circumference, oxygen saturation and BMI panel
 
 # Function to create a Patient resource following the IG
@@ -58,6 +59,12 @@ def create_observation_resources(height, weight, patient_ref):
     weight_display = "Body weight"
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
+    # Calculate BMI
+    try:
+        height_m = float(height) / 100
+        bmi = float(weight) / (height_m ** 2) if height_m > 0 else None
+    except Exception:
+        bmi = None
     obs = {
         "resourceType": "Observation",
         "meta": {
@@ -65,7 +72,7 @@ def create_observation_resources(height, weight, patient_ref):
         },
         "text": {
             "status": "generated",
-            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height}cm, Weight={weight}kg</div>"
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height}cm, Weight={weight}kg, BMI={bmi:.2f}</div>" if bmi is not None else f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height}cm, Weight={weight}kg</div>"
         },
         "status": "final",
         "category": [
@@ -92,7 +99,9 @@ def create_observation_resources(height, weight, patient_ref):
             create_observation_code_value(LOINC_WEIGHT, weight_display, weight, "kg")
         ]
     }
-    return obs
+    if bmi is not None:
+        obs["component"].append(create_observation_code_value("39156-5", "Body mass index (BMI)", bmi, "kg/m2"))
+    return obs, bmi
 
 # Function to create a FHIR transaction Bundle with Patient and Observations
 def create_patient_observation_bundle(patient_resource, height, weight):
@@ -120,7 +129,7 @@ def create_patient_observation_bundle(patient_resource, height, weight):
     # Add Observation with its own fullUrl
     obs_uuid = str(uuid.uuid4())
     obs_fullUrl = f"urn:uuid:{obs_uuid}"
-    obs_panel = create_observation_resources(height, weight, patient_fullUrl)
+    obs_panel, bmi = create_observation_resources(height, weight, patient_fullUrl)
     bundle["entry"].append({
         "fullUrl": obs_fullUrl,
         "resource": obs_panel,
@@ -129,7 +138,7 @@ def create_patient_observation_bundle(patient_resource, height, weight):
             "url": "Observation"
         }
     })
-    return bundle
+    return bundle, bmi
 
 # Function to POST a FHIR bundle to the server
 def post_fhir_bundle(bundle, server_url=FHIR_SERVER):
@@ -141,6 +150,63 @@ def post_fhir_bundle(bundle, server_url=FHIR_SERVER):
     response = requests.post(server_url, json=bundle, headers=headers)
     return response
 
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('index.html')
+
+# Route to handle form submission and create FHIR bundle
+@app.route('/create_bundle', methods=['POST'])
+def create_bundle():
+    given = request.form.get('given')
+    family = request.form.get('family')
+    gender = request.form.get('Biological sex')
+    birth_date = request.form.get('birth_date')
+    height = request.form.get('height')
+    weight = request.form.get('weight')
+    # Validate required fields
+    if not all([given, family, gender, birth_date, height, weight]):
+        return render_template('index.html', result_message="All fields are required.")
+    try:
+        height = float(height)
+        weight = float(weight)
+    except Exception:
+        return render_template('index.html', result_message="Height and Weight must be numbers.")
+    # Create Patient resource and bundle
+    patient_resource = create_patient_resource(given, family, gender, birth_date)
+    bundle, bmi = create_patient_observation_bundle(patient_resource, height, weight)
+    # Post bundle to FHIR server
+    response = post_fhir_bundle(bundle)
+    patient_url = None
+    observation_url = None
+    try:
+        resp_json = response.json()
+        if resp_json.get("resourceType") == "Bundle" and "entry" in resp_json:
+            for entry in resp_json["entry"]:
+                res_type = entry.get("resource", {}).get("resourceType", "")
+                location = entry.get("response", {}).get("location", "")
+                if location:
+                    full_url = FHIR_SERVER + location.split('/_history')[0]
+                    if res_type == "Patient":
+                        patient_url = full_url
+                    elif res_type == "Observation":
+                        observation_url = full_url
+    except Exception:
+        patient_url = None
+        observation_url = None
+
+    # Collect form variables
+    result = {
+        "patient_url": patient_url,
+        "observation_url": observation_url,
+        "given": given,
+        "family": family,
+        "gender": gender,
+        "birth_date": birth_date,
+        "height": height,
+        "weight": weight,
+        "bmi": bmi
+    }
+    return render_template('index.html', result=result)
 
 # Fetch the latest observation for a given LOINC code from the FHIR server
 def fetch_observations(loinc_code, count=50):
@@ -167,7 +233,7 @@ def fetch_observations(loinc_code, count=50):
         url = next_url
     return results
 
-
+# Fetch patient details for analysis
 def fetch_patient(patient_ref):
     if not patient_ref:
         return None, None, None
@@ -191,88 +257,6 @@ def fetch_patient(patient_ref):
         except:
             age = ""
     return name.strip(), age, gender
-
-
-@app.route('/', methods=['GET'])
-def home():
-    return render_template('index.html')
-
-# Route to handle form submission and create FHIR bundle
-@app.route('/create_bundle', methods=['POST'])
-def create_bundle():
-    given = request.form.get('given')
-    family = request.form.get('family')
-    gender = request.form.get('Biological sex')
-    birth_date = request.form.get('birth_date')
-    height = request.form.get('height')
-    weight = request.form.get('weight')
-    # Validate required fields
-    if not all([given, family, gender, birth_date, height, weight]):
-        return render_template('index.html', result_message="All fields are required.")
-    try:
-        height = float(height)
-        weight = float(weight)
-    except Exception:
-        return render_template('index.html', result_message="Height and Weight must be numbers.")
-    # Create Patient resource and bundle
-    patient_resource = create_patient_resource(given, family, gender, birth_date)
-    bundle = create_patient_observation_bundle(patient_resource, height, weight)
-    # Post bundle to FHIR server
-    response = post_fhir_bundle(bundle)
-    bundle_json = None
-    try:
-        resp_json = response.json()
-        # Extract Patient and Observation locations from response bundle
-        resource_jsons = []
-        if resp_json.get("resourceType") == "Bundle" and "entry" in resp_json:
-            for entry in resp_json["entry"]:
-                res_type = entry.get("resource", {}).get("resourceType", "")
-                location = entry.get("response", {}).get("location", "")
-                if location:
-                    # location is like 'Patient/1234/_history/1', get 'Patient/1234'
-                    resource_url = location.split('/_history')[0]
-                    # fetch from server
-                    try:
-                        r = requests.get(FHIR_SERVER + resource_url)
-                        if r.status_code == 200:
-                            resource = r.json()
-                            text_part = resource.get('text', {})
-                            div_html = text_part.get('div')
-                            if div_html:
-                                full_url = FHIR_SERVER + resource_url
-                                resource_jsons.append(
-                                    f"<div style='margin-bottom:1em;'>"
-                                    f"<strong>{res_type}</strong><br>{div_html}"
-                                    f"<br><a href='{full_url}' target='_blank' style='color:#006400;'>View resource: {full_url}</a>"
-                                    f"</div>"
-                                )
-                            else:
-                                full_url = FHIR_SERVER + resource_url
-                                resource_jsons.append(
-                                    f"<div style='margin-bottom:1em;'>"
-                                    f"<strong>{res_type}</strong><br>(No narrative text found)"
-                                    f"<br><a href='{full_url}' target='_blank' style='color:#006400;'>View resource: {full_url}</a>"
-                                    f"</div>"
-                                )
-                        else:
-                            resource_jsons.append(f"{res_type} ({resource_url}):\nError fetching resource: {r.status_code}")
-                    except Exception as e:
-                        resource_jsons.append(f"{res_type} ({resource_url}):\nError: {str(e)}")
-        bundle_json = "".join(resource_jsons)
-    except Exception:
-        bundle_json = response.text
-    if response.status_code == 200 or response.status_code == 201:
-        result_message = "FHIR Bundle created and sent successfully!"
-    else:
-        try:
-            if resp_json.get("resourceType") == "OperationOutcome":
-                issues = " ".join([f"{i.get('severity')}: {i.get('diagnostics')}" for i in resp_json.get('issue', [])])
-                result_message = f"FHIR server returned OperationOutcome: {issues}"
-            else:
-                result_message = f"FHIR server error: {response.text}"
-        except Exception:
-            result_message = f"FHIR server error: {response.text}"
-    return render_template('index.html', result_message=result_message, displayer=bundle_json)
 
 @app.route('/bmi')
 def bmi():
