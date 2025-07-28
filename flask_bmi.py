@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for
 import requests
 from datetime import datetime
 import uuid
+import json
 
 # Taiwan Core IG profile URLs
 TAIWAN_PATIENT_PROFILE = "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Patient-twcore"
@@ -201,7 +202,7 @@ def home():
 def create_bundle():
     given = request.form.get('given')
     family = request.form.get('family')
-    gender = request.form.get('gender')
+    gender = request.form.get('Biological sex')
     birth_date = request.form.get('birth_date')
     height = request.form.get('height')
     weight = request.form.get('weight')
@@ -218,6 +219,11 @@ def create_bundle():
     bundle = create_patient_observation_bundle(patient_resource, height, weight)
     # Post bundle to FHIR server
     response = post_fhir_bundle(bundle)
+    bundle_json = None
+    try:
+        bundle_json = json.dumps(bundle, indent=2, ensure_ascii=False)
+    except Exception:
+        bundle_json = str(bundle)
     if response.status_code == 200 or response.status_code == 201:
         result_message = "FHIR Bundle created and sent successfully!"
     else:
@@ -230,7 +236,7 @@ def create_bundle():
                 result_message = f"FHIR server error: {response.text}"
         except Exception:
             result_message = f"FHIR server error: {response.text}"
-    return render_template('index.html', result_message=result_message)
+    return render_template('index.html', result_message=result_message, displayer=bundle_json)
 
 @app.route('/bmi')
 def bmi():

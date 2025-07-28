@@ -12,28 +12,37 @@
     <h1>Welcome to the FHIR BMI Calculator!</h1>
     <div class="message">
         {% if result_message %}
-        <div style="text-align:center;color:rgb(205, 120, 0);margin-bottom:1em;">{{ result_message }}</div>
+        <div class="result-message">{{ result_message }}</div>
         {% endif %}
     </div>
-    <form method="post" action="/create_bundle"
-        style="max-width:400px;margin:2em auto;padding:2em;border:2px solid #b5b5b5;border-radius:8px;">
-        <label for="given">Given Name:</label><br>
-        <input type="text" id="given" name="given" required><br><br>
-        <label for="family">Family Name:</label><br>
-        <input type="text" id="family" name="family" required><br><br>
-        <label for="Biological sex">Biological sex:</label><br>
-        <select id="Biological sex" name="Biological sex" required>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-        </select><br><br>
-        <label for="birth_date">Birth Date:</label><br>
-        <input type="date" id="birth_date" name="birth_date" required><br><br>
-        <label for="height">Height (cm):</label><br>
-        <input type="number" id="height" name="height" required><br><br>
-        <label for="weight">Weight (kg):</label><br>
-        <input type="number" id="weight" name="weight" required><br><br>
-        <button type="submit">Create FHIR Bundle</button>
-    </form>
+    <div class="form-container" style="display: flex; flex-direction: row; gap: 2em; justify-content: center; align-items: flex-start;">
+        <div class="form" style="flex: 1; min-width: 320px; max-width: 500px; margin-top:2em; padding:1em; background:#dedede; border:1px solid #ccc; border-radius:8px;">
+            <form method="post" action="/create_bundle"
+                style="width:100%;">
+                <label for="given">Given Name:</label><br>
+                <input type="text" id="given" name="given" required><br><br>
+                <label for="family">Family Name:</label><br>
+                <input type="text" id="family" name="family" required><br><br>
+                <label for="Biological sex">Biological sex:</label><br>
+                <select id="Biological sex" name="Biological sex" required>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                </select><br><br>
+                <label for="birth_date">Birth Date:</label><br>
+                <input type="date" id="birth_date" name="birth_date" required><br><br>
+                <label for="height">Height (cm):</label><br>
+                <input type="number" id="height" name="height" required><br><br>
+                <label for="weight">Weight (kg):</label><br>
+                <input type="number" id="weight" name="weight" required><br><br>
+                <button type="submit">Create FHIR Bundle</button>
+            </form>
+        </div>
+        {% if displayer %}
+        <div id="displayer" style="flex: 3; min-width: 320px; max-width: 1500px; max-height: 500px; overflow: auto; margin-top:2em; padding:1em; background:#dedede; border:1px solid #ccc; border-radius:8px; white-space:pre; font-family:monospace;">
+            {{ displayer }}
+        </div>
+        {% endif %}
+    </div>
     <p style="text-align:center;">Go to <a href="/bmi">BMI Results</a> to see patient BMI calculations.</p>
 </body>
 
