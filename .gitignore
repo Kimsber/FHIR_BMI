@@ -1,0 +1,12 @@
+validator_cli.jar
+AllergyIntolerance-all-nut-example.json
+Adan632_Hessel84_ba2d627c-f94b-7c75-70cd-8e9da4f6e7ca.json
+PPT/
+tw.gov.mohw.nhi.pas#0.3.3/
+synthea_sample/
+bmi_fhir_chat_summary.md
+.fhir/
+.venv/
+.vscode/
+.git/
+__pycache__/
