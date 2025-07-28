@@ -38,8 +38,10 @@
             </form>
         </div>
         {% if displayer %}
-        <div id="displayer" style="flex: 3; min-width: 320px; max-width: 1500px; max-height: 500px; overflow: auto; margin-top:2em; padding:1em; background:#dedede; border:1px solid #ccc; border-radius:8px; white-space:pre; font-family:monospace;">
-            {{ displayer }}
+        <div id="displayer" style="flex: 3; min-width: 320px; max-width: 1500px; max-height: 500px; overflow: auto; margin-top:2em; padding:1em; background:#dedede; border:1px solid #ccc; border-radius:8px;">
+            {% if displayer %}
+                {{ displayer|safe }}
+            {% endif %}
         </div>
         {% endif %}
     </div>

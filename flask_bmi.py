@@ -65,7 +65,7 @@ def create_observation_resources(height, weight, patient_ref):
         },
         "text": {
             "status": "generated",
-            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Panel: Height={height}cm, Weight={weight}kg</div>"
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height}cm, Weight={weight}kg</div>"
         },
         "status": "final",
         "category": [
@@ -221,14 +221,50 @@ def create_bundle():
     response = post_fhir_bundle(bundle)
     bundle_json = None
     try:
-        bundle_json = json.dumps(bundle, indent=2, ensure_ascii=False)
+        resp_json = response.json()
+        # Extract Patient and Observation locations from response bundle
+        resource_jsons = []
+        if resp_json.get("resourceType") == "Bundle" and "entry" in resp_json:
+            for entry in resp_json["entry"]:
+                res_type = entry.get("resource", {}).get("resourceType", "")
+                location = entry.get("response", {}).get("location", "")
+                if location:
+                    # location is like 'Patient/1234/_history/1', get 'Patient/1234'
+                    resource_url = location.split('/_history')[0]
+                    # fetch from server
+                    try:
+                        r = requests.get(FHIR_SERVER + resource_url)
+                        if r.status_code == 200:
+                            resource = r.json()
+                            text_part = resource.get('text', {})
+                            div_html = text_part.get('div')
+                            if div_html:
+                                full_url = FHIR_SERVER + resource_url
+                                resource_jsons.append(
+                                    f"<div style='margin-bottom:1em;'>"
+                                    f"<strong>{res_type}</strong><br>{div_html}"
+                                    f"<br><a href='{full_url}' target='_blank' style='color:#006400;'>View resource: {full_url}</a>"
+                                    f"</div>"
+                                )
+                            else:
+                                full_url = FHIR_SERVER + resource_url
+                                resource_jsons.append(
+                                    f"<div style='margin-bottom:1em;'>"
+                                    f"<strong>{res_type}</strong><br>(No narrative text found)"
+                                    f"<br><a href='{full_url}' target='_blank' style='color:#006400;'>View resource: {full_url}</a>"
+                                    f"</div>"
+                                )
+                        else:
+                            resource_jsons.append(f"{res_type} ({resource_url}):\nError fetching resource: {r.status_code}")
+                    except Exception as e:
+                        resource_jsons.append(f"{res_type} ({resource_url}):\nError: {str(e)}")
+        bundle_json = "".join(resource_jsons)
     except Exception:
-        bundle_json = str(bundle)
+        bundle_json = response.text
     if response.status_code == 200 or response.status_code == 201:
         result_message = "FHIR Bundle created and sent successfully!"
     else:
         try:
-            resp_json = response.json()
             if resp_json.get("resourceType") == "OperationOutcome":
                 issues = " ".join([f"{i.get('severity')}: {i.get('diagnostics')}" for i in resp_json.get('issue', [])])
                 result_message = f"FHIR server returned OperationOutcome: {issues}"
