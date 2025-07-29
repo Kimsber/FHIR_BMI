@@ -182,18 +182,19 @@ def create_bundle():
         resp_json = response.json()
         if resp_json.get("resourceType") == "Bundle" and "entry" in resp_json:
             for entry in resp_json["entry"]:
-                res_type = entry.get("resource", {}).get("resourceType", "")
                 location = entry.get("response", {}).get("location", "")
                 if location:
                     full_url = FHIR_SERVER + location.split('/_history')[0]
-                    if res_type == "Patient":
+                    if "Patient" in location:
                         patient_url = full_url
-                    elif res_type == "Observation":
+                    elif "Observation" in location:
                         observation_url = full_url
     except Exception:
         patient_url = None
         observation_url = None
 
+    print(response.json())
+    
     # Collect form variables
     result = {
         "patient_url": patient_url,
