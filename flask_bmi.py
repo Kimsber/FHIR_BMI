@@ -193,7 +193,7 @@ def create_bundle():
         patient_url = None
         observation_url = None
 
-    print(response.json())
+    # print(response.json())
     
     # Collect form variables
     result = {
