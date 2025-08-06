@@ -6,6 +6,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BMI Calculation Results</title>
     <link rel="stylesheet" href="./static/style.css">
+    <script>
+    function convertHeightUnit() {
+        var heightVal = parseFloat(document.getElementById('height-value').textContent);
+        var heightUnit = document.getElementById('height-unit').textContent;
+        if (heightUnit === 'cm') {
+            // Convert cm to inch
+            var inch = heightVal / 2.54;
+            document.getElementById('height-value').textContent = inch.toFixed(2);
+            document.getElementById('height-unit').textContent = 'inch';
+        } else if (heightUnit === 'inch') {
+            // Convert inch to cm
+            var cm = heightVal * 2.54;
+            document.getElementById('height-value').textContent = cm.toFixed(2);
+            document.getElementById('height-unit').textContent = 'cm';
+        }
+    }
+    function convertWeightUnit() {
+        var weightVal = parseFloat(document.getElementById('weight-value').textContent);
+        var weightUnit = document.getElementById('weight-unit').textContent;
+        if (weightUnit === 'kg') {
+            // Convert kg to pound
+            var pound = weightVal / 0.45359237;
+            document.getElementById('weight-value').textContent = pound.toFixed(2);
+            document.getElementById('weight-unit').textContent = 'pound';
+        } else if (weightUnit === 'pound') {
+            // Convert pound to kg
+            var kg = weightVal * 0.45359237;
+            document.getElementById('weight-value').textContent = kg.toFixed(2);
+            document.getElementById('weight-unit').textContent = 'kg';
+        }
+    }
+    </script>
 </head>
 
 <body>
@@ -30,10 +62,18 @@
                 </select><br><br>
                 <label for="birth_date">Birth Date:</label><br>
                 <input type="date" id="birth_date" name="birth_date" required><br><br>
-                <label for="height">Height (cm):</label><br>
-                <input type="number" id="height" name="height" required><br><br>
-                <label for="weight">Weight (kg):</label><br>
-                <input type="number" id="weight" name="weight" required><br><br>
+                <label for="height">Height:</label><br>
+                <input type="number" id="height" name="height" required>
+                <select id="height_unit" name="height_unit" required style="margin-left:1em;">
+                    <option value="cm">cm</option>
+                    <option value="inch">inch</option>
+                </select><br><br>
+                <label for="weight">Weight:</label><br>
+                <input type="number" id="weight" name="weight" required>
+                <select id="weight_unit" name="weight_unit" required style="margin-left:1em;">
+                    <option value="kg">kg</option>
+                    <option value="pound">pound</option>
+                </select><br><br>
                 <button type="submit">Create FHIR Bundle</button>
             </form>
         </div>
@@ -45,8 +85,8 @@
                 <p>Family: {{ result["family"] }}</p>
                 <p>Biological sex: {{ result["gender"] }}</p>
                 <p>Birth Date: {{ result["birth_date"] }}</p>
-                <p>Height: {{ result["height"] }}</p>
-                <p>Weight: {{ result["weight"] }}</p>
+                <p>Height: <span id="height-value">{{ result["height"] }}</span> <span id="height-unit" style="color:#3e3e3e; font-size: large; cursor:pointer; text-decoration:underline;" onclick="convertHeightUnit()">{{ result["height_unit"] }}</span></p>
+                <p>Weight: <span id="weight-value">{{ result["weight"] }}</span> <span id="weight-unit" style="color:#3e3e3e; font-size: large; cursor:pointer; text-decoration:underline;" onclick="convertWeightUnit()">{{ result["weight_unit"] }}</span></p>
                 <p>Patient Resource: <a href='{{ result["patient_url"] }}' target='_blank'>{{ result["patient_url"] }}</a></p>
                 <p>Observation Resource: <a href='{{ result["observation_url"] }}' target='_blank'>{{ result["observation_url"] }}</a></p>
             </div>

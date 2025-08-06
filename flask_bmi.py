@@ -52,19 +52,50 @@ def create_observation_code_value(code, display, value, unit):
     }
 
 # Function to create Observation resources for height and weight following the IG
-def create_observation_resources(height, weight, patient_ref):
+def create_observation_resources(height, weight, height_unit, weight_unit, patient_ref):
     # Use correct LOINC display names
     vital_panel_display = "Vital signs, weight, height, head circumference, oxygen saturation and BMI panel"
     height_display = "Body height"
     weight_display = "Body weight"
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
+
+    # Convert height to meters for BMI calculation
+    try:
+        if height_unit == "cm":
+            height_m = float(height) / 100
+            height_display_val = f"{height}cm"
+        elif height_unit == "inch":
+            height_m = float(height) * 0.0254
+            height_display_val = f"{height}in"
+        else:
+            height_m = float(height)
+            height_display_val = f"{height} {height_unit}"
+    except Exception:
+        height_m = None
+        height_display_val = f"{height} {height_unit}"
+
+    # Convert weight to kg for BMI calculation
+    try:
+        if weight_unit == "kg":
+            weight_kg = float(weight)
+            weight_display_val = f"{weight}kg"
+        elif weight_unit == "pound":
+            weight_kg = float(weight) * 0.45359237
+            weight_display_val = f"{weight}lb"
+        else:
+            weight_kg = float(weight)
+            weight_display_val = f"{weight} {weight_unit}"
+    except Exception:
+        weight_kg = None
+        weight_display_val = f"{weight} {weight_unit}"
+
     # Calculate BMI
     try:
-        height_m = float(height) / 100
-        bmi = float(weight) / (height_m ** 2) if height_m > 0 else None
+        bmi = weight_kg / (height_m ** 2) if height_m and weight_kg and height_m > 0 else None
     except Exception:
         bmi = None
+
     obs = {
         "resourceType": "Observation",
         "meta": {
@@ -72,7 +103,7 @@ def create_observation_resources(height, weight, patient_ref):
         },
         "text": {
             "status": "generated",
-            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height}cm, Weight={weight}kg, BMI={bmi:.2f}</div>" if bmi is not None else f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height}cm, Weight={weight}kg</div>"
+            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height_display_val}, Weight={weight_display_val}, BMI={bmi:.2f}</div>" if bmi is not None else f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Observation: Height={height_display_val}, Weight={weight_display_val}</div>"
         },
         "status": "final",
         "category": [
@@ -95,8 +126,8 @@ def create_observation_resources(height, weight, patient_ref):
         "subject": {"reference": patient_ref},
         "effectiveDateTime": now,
         "component": [
-            create_observation_code_value(LOINC_HEIGHT, height_display, height, "cm"),
-            create_observation_code_value(LOINC_WEIGHT, weight_display, weight, "kg")
+            create_observation_code_value(LOINC_HEIGHT, height_display, height, height_unit),
+            create_observation_code_value(LOINC_WEIGHT, weight_display, weight, weight_unit)
         ]
     }
     if bmi is not None:
@@ -104,7 +135,7 @@ def create_observation_resources(height, weight, patient_ref):
     return obs, bmi
 
 # Function to create a FHIR transaction Bundle with Patient and Observations
-def create_patient_observation_bundle(patient_resource, height, weight):
+def create_patient_observation_bundle(patient_resource, height, weight, height_unit, weight_unit):
     """
     Create a transaction Bundle with Patient and Observations (height, weight).
     The patient_ref for Observations is a generated UUID fullUrl.
@@ -129,7 +160,7 @@ def create_patient_observation_bundle(patient_resource, height, weight):
     # Add Observation with its own fullUrl
     obs_uuid = str(uuid.uuid4())
     obs_fullUrl = f"urn:uuid:{obs_uuid}"
-    obs_panel, bmi = create_observation_resources(height, weight, patient_fullUrl)
+    obs_panel, bmi = create_observation_resources(height, weight, height_unit, weight_unit, patient_fullUrl)
     bundle["entry"].append({
         "fullUrl": obs_fullUrl,
         "resource": obs_panel,
@@ -163,8 +194,10 @@ def create_bundle():
     birth_date = request.form.get('birth_date')
     height = request.form.get('height')
     weight = request.form.get('weight')
+    height_unit = request.form.get('height_unit')
+    weight_unit = request.form.get('weight_unit')
     # Validate required fields
-    if not all([given, family, gender, birth_date, height, weight]):
+    if not all([given, family, gender, birth_date, height, weight, height_unit, weight_unit]):
         return render_template('index.html', result_message="All fields are required.")
     try:
         height = float(height)
@@ -173,7 +206,7 @@ def create_bundle():
         return render_template('index.html', result_message="Height and Weight must be numbers.")
     # Create Patient resource and bundle
     patient_resource = create_patient_resource(given, family, gender, birth_date)
-    bundle, bmi = create_patient_observation_bundle(patient_resource, height, weight)
+    bundle, bmi = create_patient_observation_bundle(patient_resource, height, weight, height_unit, weight_unit)
     # Post bundle to FHIR server
     response = post_fhir_bundle(bundle)
     patient_url = None
@@ -204,7 +237,9 @@ def create_bundle():
         "gender": gender,
         "birth_date": birth_date,
         "height": height,
+        "height_unit": height_unit,
         "weight": weight,
+        "weight_unit": weight_unit,
         "bmi": bmi
     }
     return render_template('index.html', result=result)
